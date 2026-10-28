@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Počasí v Trutnově</title>
+<style>
+  :root {
+    --bg: #eef3f8;
+    --card: #ffffff;
+    --text: #1d2733;
+    --muted: #66758a;
+    --accent: #2f6fdb;
+    --warm: #d9531e;
+    --cold: #2f6fdb;
+    --border: #d9e2ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1620;
+      --card: #18222f;
+      --text: #e8eef5;
+      --muted: #8fa1b5;
+      --accent: #6aa3ff;
+      --warm: #ff8a5c;
+      --cold: #6aa3ff;
+      --border: #263444;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.4;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 1.8rem; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: .95rem; }
+
+  .current {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px 32px;
+    margin-bottom: 24px;
+  }
+  .current .icon { font-size: 4.5rem; line-height: 1; }
+  .current .temp { font-size: 3.2rem; font-weight: 700; line-height: 1; }
+  .current .desc { color: var(--muted); font-size: 1.1rem; margin-top: 4px; }
+  .details { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px 24px; flex: 1; min-width: 240px; }
+  .details div span { display: block; color: var(--muted); font-size: .8rem; }
+  .details div b { font-size: 1.05rem; }
+
+  h2 { font-size: 1.2rem; margin: 0 0 12px; }
+  .forecast { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+  .day {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .day .name { font-weight: 600; }
+  .day .date { color: var(--muted); font-size: .8rem; }
+  .day .icon { font-size: 2.4rem; margin: 8px 0 4px; }
+  .day .desc { font-size: .8rem; color: var(--muted); min-height: 2.2em; }
+  .day .max { color: var(--warm); font-weight: 700; font-size: 1.15rem; }
+  .day .min { color: var(--cold); font-weight: 600; }
+  .day .extra { margin-top: 8px; font-size: .8rem; color: var(--muted); }
+
+  .status { padding: 24px; text-align: center; color: var(--muted); }
+  .error { color: #c0392b; }
+  footer { margin-top: 32px; color: var(--muted); font-size: .8rem; text-align: center; }
+  footer a { color: var(--accent); }
+  button {
+    margin-top: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer; font: inherit;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Počasí v Trutnově</h1>
+  <p class="sub" id="updated">Načítám data…</p>
+
+  <section id="current" class="current" hidden></section>
+
+  <h2>Výhled na 7 dní</h2>
+  <section id="forecast" class="forecast"></section>
+  <div id="status" class="status" hidden></div>
+
+  <footer>
+    Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>
+  </footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // Trutnov, okres Trutnov
+  var LAT = 50.561, LON = 15.912;
+  var URL = 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + LAT + '&longitude=' + LON
+    + '&timezone=Europe%2FPrague&forecast_days=7&wind_speed_unit=kmh'
+    + '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m'
+    + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset';
+
+  // WMO weather codes -> [ikona, popis]
+  var CODES = {
+    0: ['☀️', 'Jasno'],
+    1: ['🌤️', 'Převážně jasno'],
+    2: ['⛅', 'Polojasno'],
+    3: ['☁️', 'Zataženo'],
+    45: ['🌫️', 'Mlha'],
+    48: ['🌫️', 'Namrzající mlha'],
+    51: ['🌦️', 'Slabé mrholení'],
+    53: ['🌦️', 'Mrholení'],
+    55: ['🌦️', 'Silné mrholení'],
+    56: ['🌧️', 'Mrznoucí mrholení'],
+    57: ['🌧️', 'Silné mrznoucí mrholení'],
+    61: ['🌧️', 'Slabý déšť'],
+    63: ['🌧️', 'Déšť'],
+    65: ['🌧️', 'Silný déšť'],
+    66: ['🌧️', 'Mrznoucí déšť'],
+    67: ['🌧️', 'Silný mrznoucí déšť'],
+    71: ['🌨️', 'Slabé sněžení'],
+    73: ['🌨️', 'Sněžení'],
+    75: ['❄️', 'Silné sněžení'],
+    77: ['🌨️', 'Sněhová zrna'],
+    80: ['🌦️', 'Slabé přeháňky'],
+    81: ['🌦️', 'Přeháňky'],
+    82: ['⛈️', 'Silné přeháňky'],
+    85: ['🌨️', 'Sněhové přeháňky'],
+    86: ['❄️', 'Silné sněhové přeháňky'],
+    95: ['⛈️', 'Bouřka'],
+    96: ['⛈️', 'Bouřka s kroupami'],
+    99: ['⛈️', 'Silná bouřka s kroupami']
+  };
+  var DAYS = ['Neděle', 'Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota'];
+  var DIRS = ['S', 'SV', 'V', 'JV', 'J', 'JZ', 'Z', 'SZ'];
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function code(c) { return CODES[c] || ['❓', 'Neznámé']; }
+  function deg(v) { return Math.round(v) + ' °C'; }
+  function windDir(d) { return DIRS[Math.round(d / 45) % 8]; }
+  function hhmm(iso) { return iso.slice(11, 16); }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function detail(label, value) {
+    var d = el('div');
+    d.appendChild(el('span', null, label));
+    d.appendChild(el('b', null, value));
+    return d;
+  }
+
+  function renderCurrent(c, today) {
+    var box = $('current');
+    box.textContent = '';
+    var info = code(c.weather_code);
+
+    box.appendChild(el('div', 'icon', info[0]));
+
+    var main = el('div');
+    main.appendChild(el('div', 'temp', deg(c.temperature_2m)));
+    main.appendChild(el('div', 'desc', info[1]));
+    box.appendChild(main);
+
+    var det = el('div', 'details');
+    det.appendChild(detail('Pocitová teplota', deg(c.apparent_temperature)));
+    det.appendChild(detail('Vlhkost', c.relative_humidity_2m + ' %'));
+    det.appendChild(detail('Vítr', Math.round(c.wind_speed_10m) + ' km/h ' + windDir(c.wind_direction_10m)));
+    det.appendChild(detail('Srážky teď', c.precipitation + ' mm'));
+    det.appendChild(detail('Východ slunce', hhmm(today.sunrise)));
+    det.appendChild(detail('Západ slunce', hhmm(today.sunset)));
+    box.appendChild(det);
+
+    box.hidden = false;
+  }
+
+  function renderForecast(d) {
+    var wrap = $('forecast');
+    wrap.textContent = '';
+    for (var i = 0; i < d.time.length; i++) {
+      var date = new Date(d.time[i] + 'T12:00:00');
+      var info = code(d.weather_code[i]);
+      var card = el('div', 'day');
+
+      card.appendChild(el('div', 'name', i === 0 ? 'Dnes' : DAYS[date.getDay()]));
+      card.appendChild(el('div', 'date', date.getDate() + '. ' + (date.getMonth() + 1) + '.'));
+      card.appendChild(el('div', 'icon', info[0]));
+      card.appendChild(el('div', 'desc', info[1]));
+      card.appendChild(el('div', 'max', Math.round(d.temperature_2m_max[i]) + ' °C'));
+      card.appendChild(el('div', 'min', Math.round(d.temperature_2m_min[i]) + ' °C'));
+
+      var extra = el('div', 'extra');
+      extra.appendChild(el('div', null, '💧 ' + d.precipitation_sum[i] + ' mm'));
+      if (d.precipitation_probability_max[i] != null) {
+        extra.appendChild(el('div', null, '☂️ ' + d.precipitation_probability_max[i] + ' %'));
+      }
+      extra.appendChild(el('div', null, '💨 ' + Math.round(d.wind_speed_10m_max[i]) + ' km/h'));
+      card.appendChild(extra);
+
+      wrap.appendChild(card);
+    }
+  }
+
+  function showError(msg) {
+    var s = $('status');
+    s.textContent = '';
+    s.className = 'status error';
+    s.appendChild(el('div', null, msg));
+    var b = el('button', null, 'Zkusit znovu');
+    b.addEventListener('click', load);
+    s.appendChild(b);
+    s.hidden = false;
+    $('updated').textContent = 'Data se nepodařilo načíst.';
+  }
+
+  function load() {
+    $('status').hidden = true;
+    $('updated').textContent = 'Načítám data…';
+
+    fetch(URL)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var today = {
+          sunrise: data.daily.sunrise[0],
+          sunset: data.daily.sunset[0]
+        };
+        renderCurrent(data.current, today);
+        renderForecast(data.daily);
+        $('updated').textContent = 'Aktualizováno: ' + new Date().toLocaleString('cs-CZ');
+      })
+      .catch(function (err) {
+        showError('Nepodařilo se načíst počasí (' + err.message + ').');
+      });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
