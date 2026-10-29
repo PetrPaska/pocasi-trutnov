@@ -51,6 +51,7 @@
     margin-bottom: 24px;
   }
   .current .icon { font-size: 4.5rem; line-height: 1; }
+  .current .label { color: var(--muted); font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
   .current .temp { font-size: 3.2rem; font-weight: 700; line-height: 1; }
   .current .desc { color: var(--muted); font-size: 1.1rem; margin-top: 4px; }
   .details { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px 24px; flex: 1; min-width: 240px; }
@@ -68,7 +69,8 @@
   }
   .day .name { font-weight: 600; }
   .day .date { color: var(--muted); font-size: .8rem; }
-  .day .icon { font-size: 2.4rem; margin: 8px 0 4px; }
+  .day .icon { font-size: 2.4rem; line-height: 1.2; height: 1.2em; margin: 8px 0 4px; }
+  .icon svg { display: block; margin: 0 auto; }
   .day .desc { font-size: .8rem; color: var(--muted); min-height: 2.2em; }
   .day .max { color: var(--warm); font-weight: 700; font-size: 1.15rem; }
   .day .min { color: var(--cold); font-weight: 600; }
@@ -91,7 +93,7 @@
 
   <section id="current" class="current" hidden></section>
 
-  <h2>Výhled na 7 dní</h2>
+  <h2>Výhled na 7 dní <small style="color: var(--muted); font-weight: 400;">(souhrn za celý den)</small></h2>
   <section id="forecast" class="forecast"></section>
   <div id="status" class="status" hidden></div>
 
@@ -118,8 +120,8 @@
     1: ['🌤️', 'Převážně jasno'],
     2: ['⛅', 'Polojasno'],
     3: ['☁️', 'Zataženo'],
-    45: ['🌫️', 'Mlha'],
-    48: ['🌫️', 'Namrzající mlha'],
+    45: ['fog', 'Mlha'],
+    48: ['fog', 'Namrzající mlha'],
     51: ['🌦️', 'Slabé mrholení'],
     53: ['🌦️', 'Mrholení'],
     55: ['🌦️', 'Silné mrholení'],
@@ -160,6 +162,40 @@
     return e;
   }
 
+  // Emoji pro mlhu nevypadá dobře, proto je pro ni vlastní SVG ikona.
+  function fogIcon() {
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '6 8 52 54');
+    svg.setAttribute('width', '1.1em');
+    svg.setAttribute('height', '1.1em');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Mlha');
+    var cloud = document.createElementNS(NS, 'path');
+    cloud.setAttribute('d', 'M18 34a9 9 0 0 1 1-17.9A13 13 0 0 1 44 18a8.5 8.5 0 0 1 2 16z');
+    cloud.setAttribute('fill', '#b8c4d2');
+    svg.appendChild(cloud);
+    [[10, 54, 42], [14, 46, 50], [18, 50, 58]].forEach(function (l) {
+      var line = document.createElementNS(NS, 'path');
+      line.setAttribute('d', 'M' + l[0] + ' ' + l[2] + 'H' + l[1]);
+      line.setAttribute('stroke', '#8fa1b5');
+      line.setAttribute('stroke-width', '4');
+      line.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(line);
+    });
+    return svg;
+  }
+
+  function iconEl(cls, icon) {
+    var e = el('div', cls);
+    if (icon === 'fog') {
+      e.appendChild(fogIcon());
+    } else {
+      e.textContent = icon;
+    }
+    return e;
+  }
+
   function detail(label, value) {
     var d = el('div');
     d.appendChild(el('span', null, label));
@@ -172,9 +208,10 @@
     box.textContent = '';
     var info = code(c.weather_code);
 
-    box.appendChild(el('div', 'icon', info[0]));
+    box.appendChild(iconEl('icon', info[0]));
 
     var main = el('div');
+    main.appendChild(el('div', 'label', 'Právě teď'));
     main.appendChild(el('div', 'temp', deg(c.temperature_2m)));
     main.appendChild(el('div', 'desc', info[1]));
     box.appendChild(main);
@@ -201,7 +238,7 @@
 
       card.appendChild(el('div', 'name', i === 0 ? 'Dnes' : DAYS[date.getDay()]));
       card.appendChild(el('div', 'date', date.getDate() + '. ' + (date.getMonth() + 1) + '.'));
-      card.appendChild(el('div', 'icon', info[0]));
+      card.appendChild(iconEl('icon', info[0]));
       card.appendChild(el('div', 'desc', info[1]));
       card.appendChild(el('div', 'max', Math.round(d.temperature_2m_max[i]) + ' °C'));
       card.appendChild(el('div', 'min', Math.round(d.temperature_2m_min[i]) + ' °C'));
