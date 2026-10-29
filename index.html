@@ -151,6 +151,9 @@
   var DAYS = ['Neděle', 'Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota'];
   var DIRS = ['S', 'SV', 'V', 'JV', 'J', 'JZ', 'Z', 'SZ'];
 
+  var REFRESH_MS = 60 * 60 * 1000; // automatická aktualizace jednou za hodinu
+  var lastOk = 0;                  // čas poslední úspěšné aktualizace
+
   var $ = function (id) { return document.getElementById(id); };
 
   function code(c) { return CODES[c] || ['❓', 'Neznámé']; }
@@ -264,15 +267,19 @@
     s.className = 'status error';
     s.appendChild(el('div', null, msg));
     var b = el('button', null, 'Zkusit znovu');
-    b.addEventListener('click', load);
+    b.addEventListener('click', function () { load(false); });
     s.appendChild(b);
     s.hidden = false;
     $('updated').textContent = 'Data se nepodařilo načíst.';
   }
 
-  function load() {
-    $('status').hidden = true;
-    $('updated').textContent = 'Načítám data…';
+  // silent = automatická aktualizace: neblikat "Načítám" a při chybě
+  // ponechat zobrazená poslední data.
+  function load(silent) {
+    if (!silent || !lastOk) {
+      $('status').hidden = true;
+      $('updated').textContent = 'Načítám data…';
+    }
 
     fetch(URL)
       .then(function (r) {
@@ -286,14 +293,28 @@
         };
         renderCurrent(data.current, today);
         renderForecast(data.daily);
-        $('updated').textContent = 'Aktualizováno: ' + new Date().toLocaleString('cs-CZ');
+        lastOk = Date.now();
+        $('status').hidden = true;
+        $('updated').textContent = 'Aktualizováno: ' + new Date(lastOk).toLocaleString('cs-CZ');
       })
       .catch(function (err) {
-        showError('Nepodařilo se načíst počasí (' + err.message + ').');
+        if (silent && lastOk) {
+          $('updated').textContent = 'Aktualizace se nezdařila, zobrazena data z '
+            + new Date(lastOk).toLocaleString('cs-CZ') + '.';
+        } else {
+          showError('Nepodařilo se načíst počasí (' + err.message + ').');
+        }
       });
   }
 
-  load();
+  load(false);
+  setInterval(function () { load(true); }, REFRESH_MS);
+
+  // Časovače se v neaktivních záložkách nebo po uspání počítače zpožďují:
+  // po návratu na stránku dotáhnout data, pokud jsou starší než hodina.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && Date.now() - lastOk > REFRESH_MS) load(true);
+  });
 })();
 </script>
 </body>
