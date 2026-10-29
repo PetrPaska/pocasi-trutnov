@@ -89,6 +89,16 @@
     padding: 10px 4px;
     text-align: center;
   }
+  .hour-day {
+    flex: 0 0 52px;
+    align-self: stretch;
+    display: flex; flex-direction: column; justify-content: center;
+    text-align: center;
+    border-left: 2px solid var(--border);
+    color: var(--muted);
+  }
+  .hour-day .dname { font-weight: 700; color: var(--text); }
+  .hour-day .ddate { font-size: .75rem; }
   .hour.past { opacity: .5; }
   .hour.now { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
   .hour .time { font-size: .8rem; color: var(--muted); }
@@ -115,7 +125,7 @@
   <section id="current" class="current" hidden></section>
 
   <div class="hours-wrap">
-    <h2>Dnes po hodinách</h2>
+    <h2>Po hodinách</h2>
     <section id="hourly" class="hours"></section>
   </div>
 
@@ -176,6 +186,7 @@
   var DIRS = ['S', 'SV', 'V', 'JV', 'J', 'JZ', 'Z', 'SZ'];
 
   var REFRESH_MS = 15 * 60 * 1000; // automatická aktualizace jednou za 15 minut
+  var HOURLY_DAYS = 7;             // kolik dní (včetně dneška) zobrazit v hodinovém pásu
   var lastOk = 0;                  // čas poslední úspěšné aktualizace
 
   var $ = function (id) { return document.getElementById(id); };
@@ -299,13 +310,27 @@
     var first = !wrap.children.length;
     var prev = wrap.scrollLeft;
     var nowCard = null;
+    var days = [];   // dny, které už mají v pásu oddělovač
     wrap.textContent = '';
 
     for (var i = 0; i < h.time.length; i++) {
-      if (h.time[i].slice(0, 10) !== today) continue;
+      var date = h.time[i].slice(0, 10);
       var hour = parseInt(h.time[i].slice(11, 13), 10);
+
+      if (days.indexOf(date) === -1) {
+        if (days.length >= HOURLY_DAYS) break;
+        days.push(date);
+        var d = new Date(date + 'T12:00:00');
+        var sep = el('div', 'hour-day');
+        sep.appendChild(el('div', 'dname', date === today ? 'Dnes' : DAYS[d.getDay()].slice(0, 2)));
+        sep.appendChild(el('div', 'ddate', d.getDate() + '. ' + (d.getMonth() + 1) + '.'));
+        wrap.appendChild(sep);
+      }
+
+      var isNow = date === today && hour === nowHour;
+      var isPast = date === today && hour < nowHour;
       var info = hourInfo(h.weather_code[i], h.is_day[i]);
-      var card = el('div', 'hour' + (hour < nowHour ? ' past' : '') + (hour === nowHour ? ' now' : ''));
+      var card = el('div', 'hour' + (isPast ? ' past' : '') + (isNow ? ' now' : ''));
       card.title = info[1];
       card.appendChild(el('div', 'time', hhmm(h.time[i])));
       card.appendChild(iconEl('icon', info[0]));
@@ -313,12 +338,12 @@
       if (h.precipitation_probability[i] != null) {
         card.appendChild(el('div', 'p', '☂️ ' + h.precipitation_probability[i] + ' %'));
       }
-      if (hour === nowHour) nowCard = card;
+      if (isNow) nowCard = card;
       wrap.appendChild(card);
     }
 
     // Poprvé odrolovat tak, aby byla aktuální hodina uprostřed (okraje pásu
-    // mají odsazení, takže to jde i pro 0:00 a 23:00); při pozdějších
+    // mají odsazení, takže to jde i pro krajní hodiny); při pozdějších
     // aktualizacích zachovat polohu, kterou nastavil uživatel.
     if (first && nowCard) {
       wrap.scrollLeft = nowCard.offsetLeft + nowCard.offsetWidth / 2 - wrap.clientWidth / 2;
