@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Počasí v Trutnově</title>
+<script>
+  // Uložená volba motivu se použije hned, aby stránka nezablikala.
+  try {
+    var t = localStorage.getItem('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -18,8 +25,20 @@
     --cold: #2f6fdb;
     --border: #d9e2ec;
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1620;
+    --card: #18222f;
+    --text: #e8eef5;
+    --muted: #8fa1b5;
+    --accent: #6aa3ff;
+    --warm: #ff8a5c;
+    --cold: #6aa3ff;
+    --border: #263444;
+  }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
       --bg: #0f1620;
       --card: #18222f;
       --text: #e8eef5;
@@ -39,7 +58,11 @@
     line-height: 1.4;
   }
   main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   h1 { margin: 0 0 4px; font-size: 2.4rem; }
+  #theme {
+    margin: 6px 0 0; padding: 6px 10px; font-size: 1.3rem; line-height: 1; flex: none;
+  }
   .sub { color: var(--muted); margin: 0 0 24px; font-size: .95rem; }
 
   .current {
@@ -119,7 +142,10 @@
 </head>
 <body>
 <main>
-  <h1>Počasí v Trutnově</h1>
+  <div class="head">
+    <h1>Počasí v Trutnově</h1>
+    <button id="theme" type="button"></button>
+  </div>
   <p class="sub" id="updated">Načítám data…</p>
 
   <section id="current" class="current" hidden></section>
@@ -398,6 +424,31 @@
         }
       });
   }
+
+  // Přepínač motivu: bez volby se řídí nastavením systému, po kliknutí
+  // se zvolený motiv uloží v prohlížeči.
+  var root = document.documentElement;
+  var darkMq = window.matchMedia('(prefers-color-scheme: dark)');
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    return t ? t === 'dark' : darkMq.matches;
+  }
+  function updateThemeButton() {
+    var b = $('theme');
+    var dark = isDark();
+    b.textContent = dark ? '☀️' : '🌙';
+    var label = dark ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim';
+    b.title = label;
+    b.setAttribute('aria-label', label);
+  }
+  $('theme').addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) {}
+    updateThemeButton();
+  });
+  if (darkMq.addEventListener) darkMq.addEventListener('change', updateThemeButton);
+  updateThemeButton();
 
   load(false);
   setInterval(function () { load(true); }, REFRESH_MS);
