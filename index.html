@@ -80,7 +80,7 @@
   .day .extra { margin-top: 8px; font-size: .8rem; color: var(--muted); }
 
   .hours-wrap { margin-bottom: 24px; }
-  .hours { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; position: relative; scroll-behavior: auto; }
+  .hours { display: flex; gap: 8px; overflow-x: auto; padding: 2px calc(50% - 32px) 10px; position: relative; scroll-behavior: auto; }
   .hour {
     flex: 0 0 64px;
     background: var(--card);
@@ -317,11 +317,11 @@
       wrap.appendChild(card);
     }
 
-    // Poprvé odrolovat na aktuální hodinu (s jednou hodinou před ní),
-    // při pozdějších aktualizacích zachovat polohu, kterou nastavil uživatel.
+    // Poprvé odrolovat tak, aby byla aktuální hodina uprostřed (okraje pásu
+    // mají odsazení, takže to jde i pro 0:00 a 23:00); při pozdějších
+    // aktualizacích zachovat polohu, kterou nastavil uživatel.
     if (first && nowCard) {
-      var prevCard = nowCard.previousElementSibling || nowCard;
-      wrap.scrollLeft = prevCard.offsetLeft - wrap.offsetLeft;
+      wrap.scrollLeft = nowCard.offsetLeft + nowCard.offsetWidth / 2 - wrap.clientWidth / 2;
     } else {
       wrap.scrollLeft = prev;
     }
